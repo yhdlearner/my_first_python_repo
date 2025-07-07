@@ -1,0 +1,112 @@
+-- Source Table: `stg_customers`
+-- This table will simulate your incoming data feed.
+CREATE OR REPLACE TABLE `your_project_id.your_dataset_id.stg_customers` (
+    customer_id STRING NOT NULL,
+    customer_name STRING,
+    address STRING,
+    city STRING,
+    state STRING,
+    zip_code STRING,
+    email STRING,
+    last_updated_at DATETIME
+);
+
+-- Target Table: `dim_customers`
+-- This table will store your SCD Type 2 dimension data.
+CREATE OR REPLACE TABLE `your_project_id.your_dataset_id.dim_customers` (
+    customer_id STRING NOT NULL,
+    customer_name STRING,
+    address STRING,
+    city STRING,
+    state STRING,
+    zip_code STRING,
+    email STRING,
+    valid_from DATETIME,
+    valid_to DATETIME,
+    is_current BOOLEAN
+);
+
+-- Test Scenario 1: Initial Load
+
+TRUNCATE TABLE `your_project_id.your_dataset_id.stg_customers`;
+TRUNCATE TABLE `your_project_id.your_dataset_id.dim_customers`;
+
+INSERT INTO `your_project_id.your_dataset_id.stg_customers` (customer_id, customer_name, address, city, state, zip_code, email, last_updated_at) VALUES
+('C001', 'Alice Smith', '123 Oak Ave', 'Springfield', 'IL', '62701', 'alice@example.com', '2023-01-01 10:00:00'),
+('C002', 'Bob Johnson', '456 Pine St', 'Shelbyville', 'IL', '62565', 'bob@example.com', '2023-01-01 11:00:00'),
+('C003', 'Charlie Brown', '789 Elm Rd', 'Capital City', 'IL', '62704', 'charlie@example.com', '2023-01-01 12:00:00');
+
+
+CALL `your_project_id.your_dataset_id.scd_type2_merge`(
+    'your_project_id.your_dataset_id.stg_customers',
+    'your_project_id.your_dataset_id.dim_customers',
+    'customer_id',
+    'customer_name,address,city,state,zip_code,email', -- All attributes that can change
+    'valid_from',
+    'valid_to',
+    'is_current',
+    'last_updated_at'
+);
+
+SELECT * FROM `your_project_id.your_dataset_id.dim_customers` ORDER BY customer_id, valid_from;
+
+-- Test Scenario 2: Updates and New Records
+
+TRUNCATE TABLE `your_project_id.your_dataset_id.stg_customers`;
+
+INSERT INTO `your_project_id.your_dataset_id.stg_customers` (customer_id, customer_name, address, city, state, zip_code, email, last_updated_at) VALUES
+-- C001: Address change
+('C001', 'Alice Smith', '321 New Oak Dr', 'Springfield', 'IL', '62701', 'alice@example.com', '2023-01-02 09:30:00'),
+-- C002: No change - should remain current
+('C002', 'Bob Johnson', '456 Pine St', 'Shelbyville', 'IL', '62565', 'bob@example.com', '2023-01-02 10:00:00'),
+-- C003: Email change and city change
+('C003', 'Charlie Brown', '789 Elm Rd', 'Metropolis', 'IL', '62704', 'charlie.b@example.com', '2023-01-02 11:00:00'),
+-- C004: New customer
+('C004', 'Diana Prince', '101 Hero Way', 'Themyscira', 'CA', '90210', 'diana@example.com', '2023-01-02 12:00:00'),
+-- C005: New customer with a NULL email (testing null handling for new records)
+('C005', 'Eve Adams', '202 Forest Ln', 'Greenwood', 'OH', '44101', NULL, '2023-01-02 13:00:00');
+
+CALL `your_project_id.your_dataset_id.scd_type2_merge`(
+    'your_project_id.your_dataset_id.stg_customers',
+    'your_project_id.your_dataset_id.dim_customers',
+    'customer_id',
+    'customer_name,address,city,state,zip_code,email',
+    'valid_from',
+    'valid_to',
+    'is_current',
+    'last_updated_at'
+);
+
+SELECT * FROM `your_project_id.your_dataset_id.dim_customers` ORDER BY customer_id, valid_from;
+
+-- Test Scenario 3: Null Handling and Multiple Updates in Source
+
+TRUNCATE TABLE `your_project_id.your_dataset_id.stg_customers`;
+
+INSERT INTO `your_project_id.your_dataset_id.stg_customers` (customer_id, customer_name, address, city, state, zip_code, email, last_updated_at) VALUES
+-- C001: Email changed from value to NULL
+('C001', 'Alice Smith', '321 New Oak Dr', 'Springfield', 'IL', '62701', NULL, '2023-01-03 08:00:00'),
+-- C002: Email changed from NULL to value (assuming C002's email was NULL in a previous state, or for testing the NULL to value change)
+-- For this test, let's assume C002's email was NULL in the target from a previous run.
+-- To simulate this, you might manually update C002's email to NULL in dim_customers before this step if it wasn't already.
+('C002', 'Bob Johnson', '456 Pine St', 'Shelbyville', 'IL', '62565', 'bob.new@example.com', '2023-01-03 09:00:00'),
+-- C003: Multiple updates in source for C003, last_updated_at should ensure 'Metropolis' is picked
+('C003', 'Charlie Brown', '789 Elm Rd', 'Old City', 'IL', '62704', 'charlie.b@example.com', '2023-01-03 10:00:00'), -- Older update
+('C003', 'Charlie Brown', '789 Elm Rd', 'New City', 'IL', '62704', 'charlie.b@example.com', '2023-01-03 11:00:00'); -- Latest update
+
+
+CALL `your_project_id.your_dataset_id.scd_type2_merge`(
+    'your_project_id.your_dataset_id.stg_customers',
+    'your_project_id.your_dataset_id.dim_customers',
+    'customer_id',
+    'customer_name,address,city,state,zip_code,email',
+    'valid_from',
+    'valid_to',
+    'is_current',
+    'last_updated_at'
+);
+
+
+SELECT * FROM `your_project_id.your_dataset_id.dim_customers` ORDER BY customer_id, valid_from;
+
+
