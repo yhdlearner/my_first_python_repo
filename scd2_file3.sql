@@ -78,6 +78,7 @@ BEGIN
     -- COALESCE(CAST(col AS STRING), '__NULL__') ensures NULLs are consistently handled
     -- by converting them to a specific string before concatenation and fingerprinting.
     -- This prevents FARM_FINGERPRINT from returning different hashes for NULL values.
+/*
     SET v_source_concat_string = (
         SELECT STRING_AGG(FORMAT('COALESCE(CAST(S.%s AS STRING), \'__NULL__\')', TRIM(col)), ' || \'|\' || ')
         FROM UNNEST(v_change_columns_array) AS col
@@ -88,6 +89,19 @@ BEGIN
         SELECT STRING_AGG(FORMAT('COALESCE(CAST(T.%s AS STRING), \'__NULL__\')', TRIM(col)), ' || \'|\' || ')
         FROM UNNEST(v_change_columns_array) AS col
     );
+*/
+
+    SET v_source_concat_string = FORMAT('CONCAT(%s)', (
+        SELECT STRING_AGG(FORMAT('COALESCE(CAST(S.%s AS STRING), \'__NULL__\')', TRIM(col)), ', \'|\', ')
+        FROM UNNEST(v_change_columns_array) AS col
+    ));
+
+    -- Construct the concatenated string for change columns for target using CONCAT function
+    SET v_target_concat_string = FORMAT('CONCAT(%s)', (
+        SELECT STRING_AGG(FORMAT('COALESCE(CAST(T.%s AS STRING), \'__NULL__\')', TRIM(col)), ', \'|\', ')
+        FROM UNNEST(v_change_columns_array) AS col
+    ));
+
 
     -- Get all column names from the source table to use in the INSERT statement
     -- This ensures all columns from the source are carried over to the new target record
