@@ -1,0 +1,28 @@
+# dbt_project.yml
+
+name: 'your_dbt_project' # Make sure this matches your project name used in macro calls
+version: '1.0.0'
+config-version: 2
+
+profile: 'your_profile' # Ensure this matches your profiles.yml BigQuery connection
+
+# Define the path to your macros
+macro-paths: ["macros"]
+
+models:
+  your_dbt_project:
+    +materialized: view # Default for all models
+
+    control: # Directory for control models
+      +schema: control
+      +materialized: table
+
+    staging: # Directory for staging models
+      +schema: staging
+      +materialized: view
+
+    dimensions: # Directory for dimension models
+      +schema: analytics
+      # The materialization for models in this directory will be set by the macro's config
+      # No need to specify incremental here, as the macro handles it.
+      # You can still set common configs if needed, but the macro's config takes precedence.
